@@ -1,5 +1,4 @@
 const express = require("express");
-const axios = require("axios");
 const cors = require("cors");
 
 const app = express();
@@ -9,14 +8,15 @@ app.use(cors());
 const PORT = process.env.PORT || 3000;
 
 // ===============================
-// CONFIG STOCKAGE EN MÉMOIRE
+// VARIABLES
 // ===============================
 
 let monitoringInterval = null;
 let monitoringConfig = null;
+let lastAlertTime = 0; // anti-spam
 
 // ===============================
-// TELEGRAM FUNCTION
+// TELEGRAM ALERT FUNCTION
 // ===============================
 
 async function sendTelegramAlert(message) {
@@ -29,28 +29,53 @@ async function sendTelegramAlert(message) {
       return;
     }
 
-    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
-      chat_id: chatId,
-      text: message,
-    });
+    // Anti-spam: 1 message max toutes les 5 minutes
+    const now = Date.now();
+    if (now - lastAlertTime < 5 * 60 * 1000) {
+      console.log("Telegram skipped (anti-spam)");
+      return;
+    }
 
-    console.log("Telegram alert sent ✅");
+    lastAlertTime = now;
+
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message
+        })
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.ok) {
+      console.log("Telegram alert sent ✅");
+    } else {
+      console.log("Telegram error:", data);
+    }
+
   } catch (error) {
     console.log("Telegram error:", error.message);
   }
 }
 
 // ===============================
-// MONITORING LOGIC
+// SLOT CHECK FUNCTION
 // ===============================
 
 async function checkSlots() {
   try {
-    console.log("Checking slots...");
+    console.log("Checking TLS slots...");
 
-    // 👉 ICI TU METS TA LOGIQUE DE CHECK TLS
-    // Exemple fake (remplace par ta vraie logique)
-    const slotFound = Math.random() < 0.05; // 5% test
+    // ⚠️ REMPLACE CETTE PARTIE PAR TA VRAIE LOGIQUE TLS
+    // Ceci est juste un test aléatoire
+    const slotFound = Math.random() < 0.05;
 
     if (slotFound) {
       console.log("🚨 SLOT FOUND !");
@@ -63,8 +88,13 @@ async function checkSlots() {
 }
 
 // ===============================
-// API ROUTES
+// ROUTES API
 // ===============================
+
+// Health check
+app.get("/", (req, res) => {
+  res.send("TLS Monitoring Server Running 🚀");
+});
 
 // Get config
 app.get("/api/monitoring/config", (req, res) => {
@@ -83,6 +113,7 @@ app.post("/api/monitoring/config", (req, res) => {
 
 // Start monitoring
 app.post("/api/monitoring/start", (req, res) => {
+
   if (!monitoringConfig) {
     return res.status(400).json({
       success: false,
@@ -97,7 +128,7 @@ app.post("/api/monitoring/start", (req, res) => {
     });
   }
 
-  monitoringInterval = setInterval(checkSlots, 30000); // toutes les 30 sec
+  monitoringInterval = setInterval(checkSlots, 30000); // 30 sec
 
   console.log("Monitoring started ✅");
 
@@ -106,6 +137,7 @@ app.post("/api/monitoring/start", (req, res) => {
 
 // Stop monitoring
 app.post("/api/monitoring/stop", (req, res) => {
+
   if (monitoringInterval) {
     clearInterval(monitoringInterval);
     monitoringInterval = null;
@@ -113,11 +145,6 @@ app.post("/api/monitoring/stop", (req, res) => {
   }
 
   res.json({ success: true });
-});
-
-// Health check
-app.get("/", (req, res) => {
-  res.send("TLS Monitoring Server Running 🚀");
 });
 
 // ===============================
