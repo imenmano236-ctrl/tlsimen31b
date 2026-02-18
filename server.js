@@ -1,24 +1,9 @@
 const express = require("express");
-const cors = require("cors");
-
 const app = express();
+
 app.use(express.json());
-app.use(cors());
 
-const PORT = process.env.PORT || 3000;
-
-// ===============================
-// VARIABLES
-// ===============================
-
-let monitoringInterval = null;
-let monitoringConfig = null;
-let lastAlertTime = 0; // anti-spam
-
-// ===============================
-// TELEGRAM ALERT FUNCTION
-// ===============================
-
+// ================= TELEGRAM =================
 async function sendTelegramAlert(message) {
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -28,15 +13,6 @@ async function sendTelegramAlert(message) {
       console.log("Telegram not configured.");
       return;
     }
-
-    // Anti-spam: 1 message max toutes les 5 minutes
-    const now = Date.now();
-    if (now - lastAlertTime < 5 * 60 * 1000) {
-      console.log("Telegram skipped (anti-spam)");
-      return;
-    }
-
-    lastAlertTime = now;
 
     const response = await fetch(
       `https://api.telegram.org/bot${token}/sendMessage`,
@@ -65,92 +41,25 @@ async function sendTelegramAlert(message) {
   }
 }
 
-// ===============================
-// SLOT CHECK FUNCTION
-// ===============================
-
-async function checkSlots() {
-  try {
-    console.log("Checking TLS slots...");
-
-    // ⚠️ REMPLACE CETTE PARTIE PAR TA VRAIE LOGIQUE TLS
-    // Ceci est juste un test aléatoire
-    const slotFound = Math.random() < 0.05;
-
-    if (slotFound) {
-      console.log("🚨 SLOT FOUND !");
-      await sendTelegramAlert("🚨 TLS SLOT DISPONIBLE TROUVÉ !");
-    }
-
-  } catch (error) {
-    console.log("Monitoring error:", error.message);
-  }
-}
-
-// ===============================
-// ROUTES API
-// ===============================
-
-// Health check
+// ================= ROUTES =================
 app.get("/", (req, res) => {
-  res.send("TLS Monitoring Server Running 🚀");
+  res.send("Server is running 🚀");
 });
 
-// Get config
-app.get("/api/monitoring/config", (req, res) => {
-  res.json({
-    success: true,
-    data: monitoringConfig,
-    isMonitoring: !!monitoringInterval
-  });
-});
+app.post("/alert", async (req, res) => {
+  const { message } = req.body;
 
-// Save config
-app.post("/api/monitoring/config", (req, res) => {
-  monitoringConfig = req.body;
-  res.json({ success: true });
-});
-
-// Start monitoring
-app.post("/api/monitoring/start", (req, res) => {
-
-  if (!monitoringConfig) {
-    return res.status(400).json({
-      success: false,
-      message: "No config set"
-    });
+  if (!message) {
+    return res.status(400).json({ error: "Message required" });
   }
 
-  if (monitoringInterval) {
-    return res.json({
-      success: true,
-      message: "Already running"
-    });
-  }
-
-  monitoringInterval = setInterval(checkSlots, 30000); // 30 sec
-
-  console.log("Monitoring started ✅");
-
-  res.json({ success: true });
+  await sendTelegramAlert(message);
+  res.json({ status: "Alert sent" });
 });
 
-// Stop monitoring
-app.post("/api/monitoring/stop", (req, res) => {
-
-  if (monitoringInterval) {
-    clearInterval(monitoringInterval);
-    monitoringInterval = null;
-    console.log("Monitoring stopped ❌");
-  }
-
-  res.json({ success: true });
-});
-
-// ===============================
-// START SERVER
-// ===============================
+// ================= START SERVER =================
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log("Server running on port", PORT);
 });
