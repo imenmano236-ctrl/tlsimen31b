@@ -63,11 +63,8 @@ app.post("/api/monitoring/start", async (req, res) => {
 
   isMonitoring = true;
 
-  // Simuler la logique TLS ici
-  setTimeout(async () => {
-    console.log("TLS check simulated...");
-    await sendTelegramAlert("🚨 TLS slot available!");
-  }, 5000); // simulate après 5s
+  // Envoyer une alerte au démarrage du monitoring
+  await sendTelegramAlert("🤖 Bot running");
 
   res.json({ success: true, message: "Monitoring started" });
 });
@@ -84,6 +81,26 @@ app.post("/alert", async (req, res) => {
 
   await sendTelegramAlert(message);
   res.json({ status: "Alert sent" });
+});
+
+// ================= SLOT ALERT =================
+app.post("/api/slot-alert", async (req, res) => {
+  const { month, dates, times } = req.body;
+  if (!month || !dates || !times) return res.status(400).json({ error: "Month, dates, and times required" });
+
+  const message = `🔥 TLS Bot Running - Créneaux disponibles en ${month} le ${dates} aux horaires: ${times.join(', ')}`;
+  await sendTelegramAlert(message);
+  res.json({ status: "Slot alert sent" });
+});
+
+// ================= BOOKING ALERT =================
+app.post("/api/booking-alert", async (req, res) => {
+  const { date, time } = req.body;
+  if (!date || !time) return res.status(400).json({ error: "Date and time required" });
+
+  const message = `Rendez-vous réservé pour le ${date} à ${time}`;
+  await sendTelegramAlert(message);
+  res.json({ status: "Booking alert sent" });
 });
 
 // ================= HOME =================
